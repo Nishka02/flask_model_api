@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: flask-model-api
+    env: python
+    buildCommand: ""
+    startCommand: gunicorn main:app -b 0.0.0.0:$PORT
+    envVars:
+      - key: PORT
+        value: 10000

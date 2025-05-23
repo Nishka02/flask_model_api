@@ -8,7 +8,7 @@ import tensorflow as tf  # or use `tflite-runtime` for lightweight environments
 app = Flask(__name__)
 
 # ====== CONFIGURATION ======
-MODEL_PATH = "combined_model.tflite"  # Model file in the same directory
+MODEL_PATH = "model.tflite"  # Model file in the same directory
 
 # ====== LOAD TFLITE MODEL ======
 try:

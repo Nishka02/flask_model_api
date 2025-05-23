@@ -1,47 +1,32 @@
 import os
-import requests
-import tensorflow as tf
 import numpy as np
 from flask import Flask, request, jsonify
 from PIL import Image
 from io import BytesIO
+import tensorflow as tf  # or use `tflite-runtime` for lightweight environments
 
 app = Flask(__name__)
 
 # ====== CONFIGURATION ======
-MODEL_PATH = "combined_model.h5"
-GOOGLE_DRIVE_FILE_ID = "1Ta8VqtUEguXfzs0iN7pNefyW2gKHi0z3"
-MODEL_URL = f"https://drive.google.com/uc?export=download&id={GOOGLE_DRIVE_FILE_ID}"
+MODEL_PATH = "combined_model.tflite"  # Model file in the same directory
 
-# ====== DOWNLOAD MODEL IF NOT EXISTS ======
-def download_model():
-    if not os.path.exists(MODEL_PATH):
-        print("Downloading model from Google Drive...")
-        response = requests.get(MODEL_URL)
-        if response.status_code == 200:
-            with open(MODEL_PATH, "wb") as f:
-                f.write(response.content)
-            print("✅ Model downloaded successfully.")
-        else:
-            print(f"❌ Failed to download model. Status Code: {response.status_code}")
-            exit(1)
-
-download_model()
-
-# ====== LOAD MODEL ======
+# ====== LOAD TFLITE MODEL ======
 try:
-    model = tf.keras.models.load_model(MODEL_PATH)
-    print("✅ Model loaded successfully.")
+    interpreter = tf.lite.Interpreter(model_path=MODEL_PATH)
+    interpreter.allocate_tensors()
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    print("✅ TFLite model loaded successfully.")
 except Exception as e:
-    print(f"❌ Failed to load model: {e}")
+    print(f"❌ Failed to load TFLite model: {e}")
     exit(1)
 
 # ====== IMAGE PREPROCESSING ======
 def prepare_image(image_bytes):
     try:
         image = Image.open(BytesIO(image_bytes)).convert('RGB')
-        image = image.resize((224, 224))  # Match model input size
-        image = np.array(image) / 255.0   # Normalize
+        image = image.resize((224, 224))  # Match your model input size
+        image = np.array(image, dtype=np.float32) / 255.0  # Normalize
         image = np.expand_dims(image, axis=0)  # Add batch dimension
         return image
     except Exception as e:
@@ -50,7 +35,7 @@ def prepare_image(image_bytes):
 # ====== ROUTES ======
 @app.route('/')
 def index():
-    return "✅ Oral Cancer Detection API is Running!"
+    return "✅ Oral Cancer Detection TFLite API is Running!"
 
 @app.route('/health')
 def health():
@@ -66,8 +51,16 @@ def predict():
 
     try:
         processed_img = prepare_image(img_bytes)
-        prediction = model.predict(processed_img)
-        result = prediction.tolist()
+
+        # Set input tensor
+        interpreter.set_tensor(input_details[0]['index'], processed_img)
+
+        # Run inference
+        interpreter.invoke()
+
+        # Get output tensor
+        output_data = interpreter.get_tensor(output_details[0]['index'])
+        result = output_data.tolist()
 
         return jsonify({'prediction': result})
     except Exception as e:
